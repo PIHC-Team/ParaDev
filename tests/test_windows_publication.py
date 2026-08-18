@@ -149,6 +149,12 @@ def test_windows_authority_declares_required_native_safety_calls() -> None:
     assert "GetVolumeInformationByHandleW" in source
     assert "FlushFileBuffers" in source
     assert "SetFileInformationByHandle" in source
+    # Renames are the one operation that cannot use the Win32 wrapper: it answers
+    # ERROR_INVALID_PARAMETER for any non-NULL RootDirectory, which the retained
+    # authority always supplies. The native call honours it, so FileRenameInformation
+    # is issued through ntdll while every other operation stays on kernel32.
+    assert "NtSetInformationFile" in source
+    assert "_FILE_RENAME_INFORMATION_CLASS = 10" in source
     assert "_FILE_SHARE_READ | _FILE_SHARE_WRITE" in source
     assert "FILE_SHARE_DELETE" not in source
     assert '_SUPPORTED_FILESYSTEMS = frozenset({"NTFS", "REFS"})' in source
@@ -273,10 +279,21 @@ def test_windows_directory_creation_stages_retains_and_no_clobber_renames(
     renames: list[tuple[Path, str, bool]] = []
     monkeypatch.setattr(win32_fs, "uuid4", lambda: SimpleNamespace(hex="a" * 32))
     monkeypatch.setattr(win32_fs, "_resolved_directory_name", lambda _path, _name: None)
+    # After the staging rename the directory is re-opened by path, so the stub has to
+    # answer for the published name as well as the staged one. The handle handed back to
+    # the caller is the re-opened one: a handle that has itself been renamed cannot serve
+    # as the RootDirectory of a nested rename.
+    reopened = win32_fs._Win32Handle(4, api)
     monkeypatch.setattr(
         win32_fs,
         "_open_directory",
-        lambda path, **_kwargs: stage if path.name.startswith(".paradev-directory-") else None,
+        lambda path, **_kwargs: (
+            stage
+            if path.name.startswith(".paradev-directory-")
+            # "ideas" does not exist until the staging rename publishes it, so the
+            # pre-flight probe must still miss; only the post-rename re-open resolves.
+            else (reopened if path.name == "ideas" and renames else None)
+        ),
     )
     monkeypatch.setattr(win32_fs, "_create_directory_exact", lambda path, **_kwargs: created_paths.append(path))
     monkeypatch.setattr(win32_fs, "_metadata", lambda handle, **_kwargs: metadata)
@@ -295,7 +312,7 @@ def test_windows_directory_creation_stages_retains_and_no_clobber_renames(
         delete_capable=False,
     )
 
-    assert retained is stage
+    assert retained is reopened
     assert actual == metadata
     assert created is True
     assert actual_name == "ideas"

@@ -51,6 +51,9 @@ _FILE_BASIC_INFO_CLASS = 0
 _FILE_STANDARD_INFO_CLASS = 1
 _FILE_RENAME_INFO_CLASS = 3
 _FILE_DISPOSITION_INFO_CLASS = 4
+# NT information class. Distinct from FileRenameInfo above: the Win32 wrapper
+# SetFileInformationByHandle rejects a non-NULL RootDirectory, the native call honours it.
+_FILE_RENAME_INFORMATION_CLASS = 10
 
 _FILE_NAME_NORMALIZED = 0x0
 _VOLUME_NAME_GUID = 0x1
@@ -166,6 +169,12 @@ class _FILE_RENAME_INFO(ctypes.Structure):
         ("FileNameLength", ctypes.c_uint32),
         ("FileName", ctypes.c_uint16 * 1),
     ]
+
+
+class _IO_STATUS_BLOCK(ctypes.Structure):
+    """Result block for NtSetInformationFile."""
+
+    _fields_ = [("Status", ctypes.c_void_p), ("Information", ctypes.c_size_t)]
 
 
 class _FILE_DISPOSITION_INFO(ctypes.Structure):
@@ -321,6 +330,24 @@ class _Kernel32:
             ctypes.c_uint32,
         ]
         self.set_file_information.restype = ctypes.c_int32
+
+        # Renames go through the native call: SetFileInformationByHandle(FileRenameInfo)
+        # answers ERROR_INVALID_PARAMETER for any non-NULL RootDirectory, which the
+        # retained authority always supplies.
+        native = ctypes.WinDLL("ntdll")  # type: ignore[attr-defined]
+        self.nt_set_information_file = native.NtSetInformationFile
+        self.nt_set_information_file.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_int32,
+        ]
+        self.nt_set_information_file.restype = ctypes.c_long
+
+        self.nt_status_to_dos_error = native.RtlNtStatusToDosError
+        self.nt_status_to_dos_error.argtypes = [ctypes.c_long]
+        self.nt_status_to_dos_error.restype = ctypes.c_ulong
 
 
 @lru_cache(maxsize=1)
@@ -607,6 +634,17 @@ class Win32DirectoryAuthority:
         if target is None:
             source_handle.close()
             _close_handles(source_ancestors)
+            return None
+        try:
+            source_metadata = _metadata(source_handle, api=self._api)
+            target_metadata = _metadata(target, api=self._api)
+            if source_metadata.size != target_metadata.size:
+                return False
+            return _streams_equal(source_handle, target, api=self._api)
+        finally:
+            target.close()
+            source_handle.close()
+            _close_handles(source_ancestors)
 
     def file_sha256_matches(
         self,
@@ -626,17 +664,6 @@ class Win32DirectoryAuthority:
             return digest.hexdigest() == expected_sha256
         finally:
             target.close()
-            return None
-        try:
-            source_metadata = _metadata(source_handle, api=self._api)
-            target_metadata = _metadata(target, api=self._api)
-            if source_metadata.size != target_metadata.size:
-                return False
-            return _streams_equal(source_handle, target, api=self._api)
-        finally:
-            target.close()
-            source_handle.close()
-            _close_handles(source_ancestors)
 
     def write_bytes(self, parts: tuple[str, ...], payload: bytes, *, replace: bool) -> None:
         parts = _validated_relative_parts(parts)
@@ -1296,8 +1323,18 @@ class Win32DirectoryAuthority:
                             f"Best-effort staged-directory cleanup failed: {type(cleanup_error).__name__}: {cleanup_error}",
                         )
                     raise
+                # A handle that has itself been renamed cannot serve as the RootDirectory
+                # of a later rename; Windows answers STATUS_SHARING_VIOLATION. Nested
+                # publication uses the handle returned here as the anchor for the level
+                # below, so it has to be re-opened by path. Close the staged handle first:
+                # it holds DELETE with share READ|WRITE, so re-opening with DELETE while it
+                # is still open collides with itself.
                 keep_stage = True
-                return stage, metadata, True, name
+                stage.close()
+                reopened = _open_directory(target_path, api=self._api, missing_ok=True, delete=delete_capable)
+                if reopened is None:
+                    raise Win32UnsafePathError(f"Retained Windows directory vanished immediately after publication: {target_path}.")
+                return reopened, metadata, True, name
             finally:
                 if not keep_stage:
                     stage.close()
@@ -1985,16 +2022,25 @@ def _rename_handle(
     api: _Kernel32,
 ) -> None:
     buffer, size = _rename_info_buffer(parent.value, name, replace=replace)
-    if api.set_file_information(
+    iosb = _IO_STATUS_BLOCK()
+    status = api.nt_set_information_file(
         ctypes.c_void_p(handle.value),
-        _FILE_RENAME_INFO_CLASS,
+        ctypes.byref(iosb),
         buffer,
         size,
-    ):
+        _FILE_RENAME_INFORMATION_CLASS,
+    )
+    if status == 0:
         return
-    code = ctypes.get_last_error()
+    code = int(api.nt_status_to_dos_error(status))
     if not replace and code in {_ERROR_ACCESS_DENIED, _ERROR_SHARING_VIOLATION, _ERROR_FILE_EXISTS, _ERROR_ALREADY_EXISTS}:
-        raise FileExistsError(errno.EEXIST, f"Windows publication target already exists: {parent_path / name}", str(parent_path / name))
+        # The four codes are distinguishable only by NTSTATUS; a bare "already exists"
+        # hides a sharing violation, which is a different defect with a different owner.
+        raise FileExistsError(
+            errno.EEXIST,
+            f"Windows publication target already exists (NTSTATUS=0x{status & 0xFFFFFFFF:08X}): {parent_path / name}",
+            str(parent_path / name),
+        )
     raise _windows_error(code, path=parent_path / name, action="rename retained file")
 
 

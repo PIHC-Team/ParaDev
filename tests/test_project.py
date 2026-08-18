@@ -5909,6 +5909,10 @@ def test_project_create_modules_blocks_entire_batch_on_divergent_existing_module
     assert (conflict_root / "meta.yaml").read_text(encoding="utf-8") == "type: idea\ntitle: Different\n"
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Injects into _write_scaffold_file_anchored, which _uses_win32_scaffold_authority() bypasses on Windows.",
+)
 def test_project_create_modules_rolls_back_all_modules_when_staging_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -5943,6 +5947,10 @@ def test_project_create_modules_rolls_back_all_modules_when_staging_fails(
     assert not transaction_root.exists() or list(transaction_root.iterdir()) == []
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Injects into os.link, which the retained Win32 publication path does not use.",
+)
 def test_project_create_modules_rolls_back_every_installed_module_on_commit_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -6599,6 +6607,10 @@ def test_project_scaffold_module_uses_open_directory_when_family_path_is_swapped
     assert not (external_family / "SAFE").exists()
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Injects into _write_scaffold_file_anchored, which _uses_win32_scaffold_authority() bypasses on Windows.",
+)
 def test_project_scaffold_module_removes_new_partial_module_after_write_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
