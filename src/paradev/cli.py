@@ -3981,9 +3981,39 @@ def build_app() -> typer.Typer:
     return app
 
 
+def _use_utf8_streams() -> None:
+    """Make stdout and stderr carry UTF-8 whatever the console codepage is.
+
+    CLI payloads are YAML or JSON built from project content, so they routinely hold
+    characters no legacy codepage can encode. On a non-UTF-8 Windows locale a plain
+    `print` of such a payload raises `UnicodeEncodeError`, and since that happens
+    after the work is finished the command exits non-zero having actually succeeded.
+    Redirecting to a file, piping, CI and MSYS shells all take that path; only a
+    UTF-8-capable console escapes it.
+
+    Streams already on UTF-8 are left alone, as is any stream that cannot be
+    reconfigured (pytest capture, a replaced stdout).
+    """
+
+    import sys
+
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        encoding = (getattr(stream, "encoding", None) or "").replace("-", "_").lower()
+        if encoding in {"utf_8", "utf8"}:
+            continue
+        try:
+            reconfigure(encoding="utf-8")
+        except (AttributeError, OSError, ValueError):  # pragma: no cover - stream refuses
+            continue
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the ParaDev CLI."""
 
+    _use_utf8_streams()
     args = list(argv) if argv is not None else None
     app(args=args)
     return 0
