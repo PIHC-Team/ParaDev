@@ -1385,7 +1385,7 @@ def test_pihc3_state_temperature_native_sources_are_integrated() -> None:
         terrain_var_script_path,
         terrain_var_effect_path,
         interface_root / "gfx/interface/PIHC_state_temperature/base.dds",
-        interface_root / "gfx/interface/PIHC_state_temperature/mercury_indicator_strip.dds",
+        interface_root / "gfx/interface/PIHC_state_temperature/mercury.dds",
         interface_root / "gfx/interface/PIHC_state_temperature/needle_strip.dds",
         interface_root / "gfx/interface/PIHC_state_temperature/progress_bar_frame.dds",
         interface_root / "gfx/interface/PIHC_state_temperature/progress_red.dds",
@@ -1410,8 +1410,8 @@ def test_pihc3_state_temperature_native_sources_are_integrated() -> None:
     ):
         assert re.search(rf"^\s*{re.escape(effect_id)}\s*=\s*\{{", effect_text, re.MULTILINE)
     assert "global.PIHC_var_state_temperature_factor_threat = global.threat" in effect_text
-    assert "THIS.PIHC_var_state_temperature_factor_threat_con = PREV.has_added_tension_amount" in effect_text
-    assert "THIS.PIHC_var_state_controller_outdoor_temperature_influence = PREV.VAR_OUTDOOR_TEMPERATURE_INFLUENCE" in effect_text
+    assert "THIS.PIHC_var_state_temperature_factor_threat_con = THIS.has_added_tension_amount" in effect_text
+    assert "THIS.PIHC_var_state_controller_outdoor_temperature_influence = THIS.VAR_OUTDOOR_TEMPERATURE_INFLUENCE" in effect_text
     assert re.search(
         r"set_variable\s*=\s*\{\s*THIS\.PIHC_var_state_terrain_temperature_correction\s*=\s*"
         r"THIS\.VAR_OUTDOOR_TEMPERATURE_INFLUENCE_MAX\s*\}.*?"
@@ -1447,9 +1447,9 @@ def test_pihc3_state_temperature_native_sources_are_integrated() -> None:
     assert "var = THIS.PIHC_var_state_outdoor_temperature_display" in effect_text
     assert "min = -39" in effect_text
     assert "max = 42" in effect_text
-    assert "THIS.PIHC_var_state_outdoor_temperature_indicator_frame = THIS.PIHC_var_state_outdoor_temperature_display" in effect_text
-    assert "THIS.PIHC_var_state_outdoor_temperature_indicator_frame = 40" in effect_text
-    assert "round_variable = THIS.PIHC_var_state_outdoor_temperature_indicator_frame" in effect_text
+    assert "THIS.PIHC_temperature_mercury_y = THIS.PIHC_var_state_outdoor_temperature_display" in effect_text
+    assert "THIS.PIHC_temperature_mercury_y = 165.12" in effect_text
+    assert "THIS.PIHC_temperature_mercury_y = -5.12" in effect_text
     for threshold, expected_frame in (
         ("40", "7"),
         ("30", "6"),
@@ -1518,7 +1518,7 @@ def test_pihc3_state_temperature_native_sources_are_integrated() -> None:
         re.DOTALL,
     )
     assert re.search(
-        r"on_monthly\s*=\s*\{.*?random_country\s*=\s*\{.*?PIHC_update_current_month\s*=\s*yes",
+        r"on_monthly\s*=\s*\{.*?random_country\s*=\s*\{.*?PIHC_update_monthly_global_variables\s*=\s*yes",
         on_action_text,
         re.DOTALL,
     )
@@ -1611,15 +1611,15 @@ def test_pihc3_state_temperature_native_sources_are_integrated() -> None:
     assert "parent_window_token = selected_state_view" in scripted_gui_text
     assert "window_name = pihc_state_temperature" in scripted_gui_text
     assert "frame = THIS.PIHC_var_state_indoor_temperature_frame" in scripted_gui_text
-    assert "frame = THIS.PIHC_var_state_outdoor_temperature_indicator_frame" in scripted_gui_text
+    assert "y = THIS.PIHC_temperature_mercury_y" in scripted_gui_text
     assert "pihc_state_temperature_mercury_indicator" in scripted_gui_text
-    assert "dirty = THIS.PIHC_var_state_outdoor_temperature" in scripted_gui_text
+    assert "dirty = global.PIHC_temperature_revision" in scripted_gui_text
 
     interface_gui_text = interface_gui_path.read_text(encoding="utf-8")
     assert "name = pihc_state_temperature" in interface_gui_text
     assert "orientation = lower_right" in interface_gui_text
     assert re.search(
-        r"name\s*=\s*pihc_state_temperature.*?position\s*=\s*\{\s*x\s*=\s*30\s*y\s*=\s*-362\s*\}",
+        r"name\s*=\s*pihc_state_temperature.*?position\s*=\s*\{\s*x\s*=\s*30\s*y\s*=\s*-480\s*\}",
         interface_gui_text,
         re.DOTALL,
     )
@@ -1628,7 +1628,7 @@ def test_pihc3_state_temperature_native_sources_are_integrated() -> None:
     assert "spriteType = GFX_pihc_state_temperature_scale" in interface_gui_text
     assert "spriteType = GFX_pihc_state_temperature_indoor_needle" in interface_gui_text
     assert "spriteType = GFX_pihc_state_temperature_mercury_indicator" in interface_gui_text
-    assert interface_gui_text.count("pdx_tooltip = pihc_state_temperature_tt") >= 3
+    assert interface_gui_text.count("pdx_tooltip = pihc_state_temperature_tt") >= 2
     assert "pihc_state_temperature_indoor_tt" not in interface_gui_text
     assert "pihc_state_temperature_outdoor_tt" not in interface_gui_text
     assert "name = pihc_state_temperature_outdoor_value" in interface_gui_text
@@ -1637,9 +1637,9 @@ def test_pihc3_state_temperature_native_sources_are_integrated() -> None:
     interface_gfx_text = interface_gfx_path.read_text(encoding="utf-8")
     assert 'texturefile = "gfx/interface/PIHC_state_temperature/base.dds"' in interface_gfx_text
     assert 'texturefile = "gfx/interface/PIHC_state_temperature/needle_strip.dds"' in interface_gfx_text
-    assert 'texturefile = "gfx/interface/PIHC_state_temperature/mercury_indicator_strip.dds"' in interface_gfx_text
+    assert 'texturefile = "gfx/interface/PIHC_state_temperature/mercury.dds"' in interface_gfx_text
     assert 'texturefile = "gfx/interface/PIHC_state_temperature/scale.dds"' in interface_gfx_text
-    assert "noOfFrames = 82" in interface_gfx_text
+    assert "noOfFrames = 82" not in interface_gfx_text
     for index in range(1, 8):
         assert f'name = "GFX_pihc_state_temperature_needle_{index}"' in interface_gfx_text
         assert f'texturefile = "gfx/interface/PIHC_state_temperature/needle_{index}.dds"' in interface_gfx_text
