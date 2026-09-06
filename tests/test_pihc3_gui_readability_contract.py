@@ -32,13 +32,13 @@ def _named_block(text: str, block_type: str, name: str) -> str:
     raise AssertionError(f"unterminated {block_type} named {name}")
 
 
-def test_country_selection_entries_remove_stale_new_content_controls() -> None:
+def test_country_selection_entries_supply_engine_required_new_content_controls() -> None:
     gui = load_txt(str(INTERFACE_ROOT / "frontendgamesetupview.gui"), encoding="utf-8")
 
     for entry_name in ("country_entry", "country_entry_medium", "country_entry_mini"):
         entry = _named_block(gui, "containerWindowType", entry_name)
-        assert 'name = "new_content"' not in entry
-        assert 'spriteType = "GFX_unplayed_content_notification"' not in entry
+        assert 'name = "new_content"' in entry
+        assert 'spriteType = "GFX_unplayed_content_notification"' in entry
 
 
 def test_single_bookmark_country_selection_exposes_main_menu_back() -> None:

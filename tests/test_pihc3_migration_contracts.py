@@ -1166,7 +1166,7 @@ def test_pihc3_frontend_game_setup_gui_matches_current_hoi4_country_selector_con
 
     for required_gui_name in ("country_filter", "filters", "more_countries"):
         assert f"name = {required_gui_name}" in frontend_setup or f'name = "{required_gui_name}"' in frontend_setup
-    assert not re.search(r'name\s*=\s*"?new_content"?\b', frontend_setup)
+    assert len(re.findall(r'name\s*=\s*"new_content"', frontend_setup)) == 3
     assert not re.search(r'name\s*=\s*"?country_shine"?\b', frontend_setup)
     assert re.search(
         r'name\s*=\s*"?countries_medium"?\b.*?slotsize\s*=\s*\{\s*width\s*=\s*150\s+height\s*=\s*0\s*\}',
@@ -1234,7 +1234,7 @@ def test_pihc3_current_hoi4_runtime_contracts_resolve_known_startup_errors() -> 
         encoding="utf-8"
     )
     registered_country_tags = re.findall(r"^\s*([A-Z0-9]{3})\s*=", country_tags, re.MULTILINE)
-    assert registered_country_tags == [f"C{index:02d}" for index in range(67)]
+    assert registered_country_tags == [f"C{index:02d}" for index in range(68)]
     assert not {"GER", "ENG", "SOV", "SWE", "NOR", "FIN", "FRA", "ITA"} & set(registered_country_tags)
 
     unit_tags = (project_root / "src/modules/common_data/COMMON_DATA_UNIT_TAGS_00_CATEGORIES/common/unit_tags/00_categories.txt").read_text(encoding="utf-8")
@@ -2098,7 +2098,7 @@ def test_pihc3_current_hoi4_119_startup_error_contracts(
 
     c04_focus = (project_root / "src/modules/focus/FOCUS_C04_THE_INVESTIGATION_TEAM - 成立调查组/def.txt").read_text(encoding="utf-8")
     assert "custom_effect_tooltip = {" not in c04_focus
-    assert "custom_effect_tooltip = C04_FOCUS_THE_INVESTIGATION_TEAM_TOOLTIP" in c04_focus
+    assert "custom_effect_tooltip = FOCUS_C04_THE_INVESTIGATION_TEAM_TOOLTIP" in c04_focus
     assert "set_country_flag = PIHC_COUNTRY_FLAG_SEPAL_INVESTIGATION" in c04_focus
 
     abilities = (
