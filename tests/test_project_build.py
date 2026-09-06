@@ -906,6 +906,50 @@ def test_project_build_filters_target_modules_for_partial_recompile(
 
 
 @pytest.mark.pihc3
+def test_project_localisation_postprocessor_shadows_vanilla_state_name_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    game_root = tmp_path / "game"
+    monkeypatch.setenv("PIHC3_HOI4_GAME_ROOT", str(game_root))
+    project = _write_localisation_postprocessor_project(tmp_path / "project")
+    root = project.root
+    native = root / "src/modules/native_loc"
+    shutil.rmtree(native / "BETA")
+    (native / "ALPHA").rename(native / "4")
+    native.rename(root / "src/modules/state")
+    (root / "src/modules/state/4/main.loc").write_text("[en.STATE_4]\nTrottingham\n\n[zh.STATE_4]\n驼丁汉\n", encoding="utf-8")
+    (root / "src/modules/state/4/def.txt").write_text("state = { id = 4 name = STATE_4 provinces = { 1 } }\n", encoding="utf-8")
+    state_extension = Path(__file__).resolve().parents[1] / "projects/PIHC3/extensions/state/__init__.py"
+    (root / "system/state.py").write_text(
+        state_extension.read_text(encoding="utf-8") + "\ndef register(registry):\n    registry.add(PIHC3StateFamily())\n",
+        encoding="utf-8",
+    )
+    config = root / "paradev.yaml"
+    config.write_text(
+        config.read_text(encoding="utf-8")
+        .split("  native_loc:")[0]
+        .replace("  - system/localisation_postprocessor.py", "  - system/localisation_postprocessor.py\n  - system/state.py"),
+        encoding="utf-8",
+    )
+    for language, name in (("english", "Lower Austria"), ("simp_chinese", "下奥地利")):
+        reference = game_root / f"localisation/{language}/state_names_l_{language}.yml"
+        reference.parent.mkdir(parents=True)
+        reference.write_text(f'\ufeffl_{language}:\n STATE_4:0 "{name}"\n', encoding="utf-8")
+    project = Project.load(root)
+    result = project.build(emit_artifacts=True, emit_manifests=True)
+    assert not result.blocked
+    artifacts = {str(artifact.path): artifact for artifact in result.artifacts}
+    for language, name in (("english", "Trottingham"), ("simp_chinese", "驼丁汉")):
+        path = f"localisation/{language}/state_names_l_{language}.yml"
+        artifact = artifacts[path]
+        assert f' STATE_4:0 "{name}"'.encode() in (project.output_root / path).read_bytes()
+        obsolete = f"localisation/replace/{language}/state_names_l_{language}.yml"
+        assert obsolete not in artifacts
+        assert obsolete in artifact.metadata["publication_replaces"]
+
+
+@pytest.mark.pihc3
 def test_project_localisation_postprocessor_keeps_targeted_publication_consistent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
