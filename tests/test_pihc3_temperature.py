@@ -211,15 +211,15 @@ def test_heating_and_burn_override():
     assert state["PIHC_var_state_indoor_temperature"] == 20
 
 
-@pytest.mark.parametrize("temperature,y", [(-50, 285), (-39, 285), (0, 129), (42, -39), (50, -39)])
+@pytest.mark.parametrize("temperature,y", [(-50, 285), (-39, 285), (-30, 249), (-10, 169), (-1, 133), (0, 129), (10, 89), (30, 9), (42, -39), (50, -39)])
 def test_mercury_position_is_continuous_and_clipped(temperature, y):
     system = Temperature()
-    state = {"PIHC_var_state_outdoor_temperature": temperature}
+    state = {"PIHC_var_state_outdoor_temperature": temperature, "PIHC_var_state_indoor_temperature": 4}
     system.run("PIHC_update_state_outdoor_temperature_frame", state)
-    assert state["PIHC_temperature_mercury_y"] == pytest.approx(y * 1.28)
+    assert state["PIHC_temperature_mercury_y"] == pytest.approx(y)
     state["PIHC_var_state_outdoor_temperature"] = 1.25
     system.run("PIHC_update_state_outdoor_temperature_frame", state)
-    assert state["PIHC_temperature_mercury_y"] == pytest.approx(158.72)
+    assert state["PIHC_temperature_mercury_y"] == pytest.approx(124)
 
 
 def test_two_years_one_update_per_state_and_bounded_population_weighting():

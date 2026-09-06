@@ -1448,8 +1448,8 @@ def test_pihc3_state_temperature_native_sources_are_integrated() -> None:
     assert "min = -39" in effect_text
     assert "max = 42" in effect_text
     assert "THIS.PIHC_temperature_mercury_y = THIS.PIHC_var_state_outdoor_temperature_display" in effect_text
-    assert "THIS.PIHC_temperature_mercury_y = 165.12" in effect_text
-    assert "THIS.PIHC_temperature_mercury_y = -5.12" in effect_text
+    assert "THIS.PIHC_temperature_mercury_y = 129" in effect_text
+    assert "THIS.PIHC_temperature_mercury_y = -4" in effect_text
     for threshold, expected_frame in (
         ("40", "7"),
         ("30", "6"),
@@ -1619,7 +1619,7 @@ def test_pihc3_state_temperature_native_sources_are_integrated() -> None:
     assert "name = pihc_state_temperature" in interface_gui_text
     assert "orientation = lower_right" in interface_gui_text
     assert re.search(
-        r"name\s*=\s*pihc_state_temperature.*?position\s*=\s*\{\s*x\s*=\s*30\s*y\s*=\s*-480\s*\}",
+        r"name\s*=\s*pihc_state_temperature.*?position\s*=\s*\{\s*x\s*=\s*30\s*y\s*=\s*-362\s*\}",
         interface_gui_text,
         re.DOTALL,
     )
