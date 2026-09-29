@@ -1185,6 +1185,28 @@ def test_pihc3_frontend_game_setup_gui_matches_current_hoi4_country_selector_con
     )
 
 
+def test_pihc3_production_view_matches_hoi4_1193_equipment_list_contract() -> None:
+    production_view = (
+        PIHC3_ROOT
+        / "src/modules/interface/INTERFACE_PIHC_INTERFACE/interface/countryproductionlineview.gui"
+    ).read_text(encoding="utf-8")
+
+    resources = re.search(
+        r"containerWindowType\s*=\s*\{\s*name\s*=\s*resources\s+position\s*=\s*\{\s*x\s*=\s*18\s+y\s*=\s*50\s*\}\s+size\s*=\s*\{\s*width\s*=\s*(\d+)\s+height\s*=\s*(\d+)\s*\}",
+        production_view,
+        re.DOTALL,
+    )
+    assert resources is not None
+    assert resources.groups() == ("462", "35")
+    assert re.search(
+        r"name\s*=\s*resources.*?position\s*=\s*\{\s*x\s*=\s*18\s+y\s*=\s*50\s*\}",
+        production_view,
+        re.DOTALL,
+    )
+    assert "name = dominance_icon" in production_view
+    assert "name = dominance_value" in production_view
+
+
 def test_pihc3_current_hoi4_runtime_contracts_resolve_known_startup_errors() -> None:
     project_root = PIHC3_ROOT
     interface_root = project_root / "src/modules/interface/INTERFACE_PIHC_INTERFACE"
