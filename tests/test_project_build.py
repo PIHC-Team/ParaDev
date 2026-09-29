@@ -950,6 +950,18 @@ def test_project_localisation_postprocessor_shadows_vanilla_state_name_files(
 
 
 @pytest.mark.pihc3
+def test_project_localisation_postprocessor_preserves_newlines_across_builds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PIHC3_HOI4_GAME_ROOT", str(tmp_path / "game"))
+    project = _write_localisation_postprocessor_project(tmp_path / "project")
+    source = tmp_path / "project/src/modules/native_loc/ALPHA/main.loc"
+    source.write_text('[en.ALPHA_ONLY]\nFirst\\n\\nSecond\nThird "quoted" C:\\hoi4\n', encoding="utf-8")
+    target = project.output_root / "localisation/english/ALPHA_l_english.yml"
+    for options in ({}, {}, {"family": "native_loc", "module_id": "ALPHA"}):
+        result = project.build(emit_artifacts=True, emit_manifests=True, **options)
+        assert not result.blocked
+        assert target.read_text(encoding="utf-8-sig") == 'l_english:\n ALPHA_ONLY:0 "First\\n\\nSecond\\nThird \\"quoted\\" C:\\\\hoi4"\n'
+
+
 def test_project_localisation_postprocessor_keeps_targeted_publication_consistent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

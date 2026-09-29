@@ -102,13 +102,24 @@ class LocalizationYMLWriter:
 
     artifact_type = "loc"
 
+    def render_bytes(self, artifact: Artifact) -> bytes:
+        """Render one localization document with its UTF-8 BOM.
+
+        Args:
+            artifact (Artifact): Localization artifact containing one language.
+
+        Returns:
+            bytes: Engine-ready localization, including the UTF-8 BOM.
+        """
+
+        return _loc_yml(_loc_entries(artifact)).encode("utf-8-sig")
+
     def write(self, artifact: Artifact, output_root: str | Path) -> Path:
         """Write one localization artifact under an output root."""
 
-        entries = _loc_entries(artifact)
         target = _artifact_target(output_root, artifact)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(_loc_yml(entries), encoding="utf-8-sig")
+        target.write_bytes(self.render_bytes(artifact))
         return target
 
 
@@ -555,7 +566,31 @@ def _sprite_entry(sprite: SpriteType) -> PDXEntry:
 
 def _loc_escape(value: str) -> str:
     normalized = value.replace("\r\n", "\n").replace("\r", "\n")
-    return normalized.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    escaped: list[str] = []
+    index = 0
+    while index < len(normalized):
+        character = normalized[index]
+        if normalized[index : index + 2] == "\\\\":
+            # An explicit pair denotes literal slashes, not a control escape.
+            escaped.append("\\\\\\\\")
+            index += 2
+            continue
+        if character == "\\" and index + 1 < len(normalized) and normalized[index + 1] in {"n", "t"}:
+            # Source localization uses HoI4's textual escapes already. Do not
+            # turn the leading slash into a second slash in generated YAML.
+            escaped.append(normalized[index : index + 2])
+            index += 2
+            continue
+        if character == "\\":
+            escaped.append("\\\\")
+        elif character == '"':
+            escaped.append('\\"')
+        elif character == "\n":
+            escaped.append("\\n")
+        else:
+            escaped.append(character)
+        index += 1
+    return "".join(escaped)
 
 
 def _static_copy_source(artifact: Artifact) -> Path:

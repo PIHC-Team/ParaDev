@@ -515,6 +515,29 @@ def test_localization_writer_escapes_line_breaks(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8-sig") == ('l_english:\n GER_sample_desc:0 "First line\\nSecond line\\nThird line"\n')
 
 
+def test_localization_writer_preserves_existing_hoi4_line_break_escapes(tmp_path: Path) -> None:
+    artifact = Artifact(
+        path="localisation/english/GER_sample_l_english.yml",
+        artifact_type="loc",
+        owner="module:focus/GER_sample",
+        payload=(
+            LocalizationEntry(
+                key="GER_sample_desc",
+                language="l_english",
+                text="First line\\nSecond line\\tIndented",
+                source_path="main.loc",
+            ),
+        ),
+    )
+    registry = BuildRegistry().add(LocalizationYMLWriter())
+    result = BuildResult.plan(project_id="minimal_hoi4", artifacts=(artifact,))
+
+    write_artifacts(result, registry, tmp_path / "out")
+
+    target = tmp_path / "out/localisation/english/GER_sample_l_english.yml"
+    assert target.read_text(encoding="utf-8-sig") == ('l_english:\n GER_sample_desc:0 "First line\\nSecond line\\tIndented"\n')
+
+
 def test_json_view_writer_emits_metadata_payload(tmp_path: Path) -> None:
     artifact = Artifact(
         path="views/focus-tree/GER_main.json",
